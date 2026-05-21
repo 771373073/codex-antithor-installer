@@ -16,7 +16,7 @@ bash install.sh
 安装过程中会提示：
 
 ```text
-Enter ANTITHOR_API_KEY, then press Enter. Input is hidden:
+请输入 ANTITHOR_API_KEY，然后回车。输入时不会显示，这是正常的：
 >
 ```
 

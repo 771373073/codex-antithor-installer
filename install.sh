@@ -53,7 +53,7 @@ if [ -z "${BASH_VERSION:-}" ]; then
   exec bash "$0" "$@"
 fi
 
-log "Checking system"
+log "检查系统信息"
 uname -a
 if [ -f /etc/os-release ]; then
   . /etc/os-release
@@ -62,7 +62,7 @@ fi
 
 case "$(uname -m)" in
   x86_64|aarch64|arm64) ;;
-  *) die "Unsupported architecture: $(uname -m)" ;;
+  *) die "不支持的系统架构: $(uname -m)" ;;
 esac
 
 missing=()
@@ -74,14 +74,14 @@ done
 
 if [ "${#missing[@]}" -gt 0 ]; then
   if ! has_cmd apt-get; then
-    die "Missing commands: ${missing[*]}; apt-get not found, install them manually first."
+    die "缺少命令: ${missing[*]}；并且未找到 apt-get，请先手动安装这些依赖。"
   fi
-  log "Installing prerequisites: ${missing[*]}"
+  log "安装基础依赖: ${missing[*]}"
   sudo_if_needed apt-get update
   sudo_if_needed apt-get install -y curl git ca-certificates tar xz-utils
 fi
 
-log "Installing/loading nvm ${NVM_VERSION}"
+log "安装/加载 nvm ${NVM_VERSION}"
 export NVM_DIR="$HOME/.nvm"
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
   curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" | bash
@@ -90,18 +90,18 @@ fi
 # shellcheck source=/dev/null
 . "$NVM_DIR/nvm.sh"
 
-log "Installing/using Node.js ${NODE_VERSION}"
+log "安装/使用 Node.js ${NODE_VERSION}"
 nvm install "$NODE_VERSION"
 nvm alias default "$NODE_VERSION"
 nvm use "$NODE_VERSION"
 
-log "Installing Codex CLI package: ${CODEX_PACKAGE}"
+log "安装 Codex CLI: ${CODEX_PACKAGE}"
 npm install -g "$CODEX_PACKAGE"
 
 mkdir -p "$HOME/.codex"
 
 if [ -z "${!API_KEY_ENV_NAME:-}" ]; then
-  printf '\nEnter %s, then press Enter. Input is hidden:\n> ' "$API_KEY_ENV_NAME"
+  printf '\n请输入 %s，然后回车。输入时不会显示，这是正常的：\n> ' "$API_KEY_ENV_NAME"
   IFS= read -r -s API_KEY_VALUE
   printf '\n'
 else
@@ -109,15 +109,15 @@ else
 fi
 
 if [ -z "${API_KEY_VALUE:-}" ]; then
-  die "${API_KEY_ENV_NAME} is empty."
+  die "${API_KEY_ENV_NAME} 不能为空。"
 fi
 
-log "Writing API key environment file"
+log "写入 API Key 环境变量文件"
 umask 077
 shell_quote_export "$API_KEY_ENV_NAME" "$API_KEY_VALUE" > "$HOME/.codex/env"
 chmod 600 "$HOME/.codex/env"
 
-log "Writing Codex config"
+log "写入 Codex 配置"
 if [ -f "$HOME/.codex/config.toml" ]; then
   cp "$HOME/.codex/config.toml" "$HOME/.codex/config.toml.bak-$(date +'%Y%m%d-%H%M%S')"
 fi
@@ -135,7 +135,7 @@ env_key = "${API_KEY_ENV_NAME}"
 wire_api = "responses"
 EOF
 
-log "Making Codex available to login and non-interactive shells"
+log "配置 Codex 命令，让登录 shell 和非交互 SSH 都能找到"
 ensure_line "$HOME/.profile" 'export NVM_DIR="$HOME/.nvm"'
 ensure_line "$HOME/.profile" '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"'
 ensure_line "$HOME/.profile" '[ -f "$HOME/.codex/env" ] && . "$HOME/.codex/env"'
@@ -153,13 +153,13 @@ set -e
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 [ -f "$HOME/.codex/env" ] && . "$HOME/.codex/env"
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
-  echo "nvm not found at $NVM_DIR/nvm.sh" >&2
+  echo "未找到 nvm: $NVM_DIR/nvm.sh" >&2
   exit 127
 fi
 . "$NVM_DIR/nvm.sh"
 nvm use --silent default >/dev/null
 if [ ! -x "$NVM_BIN/codex" ]; then
-  echo "codex not found in $NVM_BIN" >&2
+  echo "未在 $NVM_BIN 中找到 codex" >&2
   exit 127
 fi
 exec "$NVM_BIN/codex" "$@"
@@ -167,32 +167,32 @@ EOF
 chmod +x "$HOME/.local/bin/codex"
 
 if has_cmd sudo; then
-  log "Installing /usr/local/bin/codex wrapper"
+  log "安装 /usr/local/bin/codex 包装脚本"
   sudo_if_needed install -m 0755 "$HOME/.local/bin/codex" /usr/local/bin/codex
 else
-  log "sudo not found; installed wrapper at $HOME/.local/bin/codex only"
+  log "未找到 sudo；仅安装包装脚本到 $HOME/.local/bin/codex"
 fi
 
-log "Verification"
+log "安装结果检查"
 printf 'node: '
 node -v
 printf 'npm: '
 npm -v
 printf 'codex: '
 codex --version
-printf 'config: %s\n' "$HOME/.codex/config.toml"
-printf 'key env: %s stored in %s\n' "$API_KEY_ENV_NAME" "$HOME/.codex/env"
+printf '配置文件: %s\n' "$HOME/.codex/config.toml"
+printf 'API Key 环境变量: %s，保存位置: %s\n' "$API_KEY_ENV_NAME" "$HOME/.codex/env"
 
 cat <<'EOF'
 
-Done.
+安装完成。
 
-Recommended test:
+建议继续测试：
   codex exec "hello"
 
-For Codex Desktop remote SSH:
-  1. Make sure your local machine can SSH into this server.
-  2. Reconnect the remote host from Codex Desktop.
-  3. If it still says Codex is not installed, log out/in on the server
-     or restart Codex Desktop and try again.
+如果要给 Codex Desktop 远程 SSH 使用：
+  1. 先确认本地电脑可以 SSH 进入这台服务器。
+  2. 回到 Codex Desktop 重新连接远程主机。
+  3. 如果仍然提示“未安装 Codex”，退出服务器重新登录，
+     或者重启 Codex Desktop 后再试。
 EOF
