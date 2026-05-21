@@ -1,50 +1,99 @@
-# Codex Antithor Installer
+# Codex Antithor 一键安装脚本
 
-One-command installer for Ubuntu servers. It installs Codex CLI with Node.js 16 through nvm, then configures Codex to use the Antithor API gateway.
+这个仓库用于在 Ubuntu 服务器上一键安装 Codex CLI，并配置为使用 Antithor 中转站。
 
-## Quick Start
+适合给多人批量配置服务器使用。用户只需要在服务器里运行安装命令，脚本会在需要时暂停，提示输入自己的 API Key。
+
+## 一键安装
+
+在服务器终端运行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/771373073/codex-antithor-installer/main/install.sh -o install.sh
 bash install.sh
 ```
 
-The script will pause and ask for:
+安装过程中会提示：
 
 ```text
-ANTITHOR_API_KEY
+Enter ANTITHOR_API_KEY, then press Enter. Input is hidden:
+>
 ```
 
-Input is hidden. Press Enter to continue.
+此时粘贴你的 API Key，然后回车即可。输入过程中不会显示，这是正常的。
 
-## What It Does
+## 脚本会做什么
 
-- Installs nvm.
-- Installs Node.js 16.
-- Installs `@openai/codex`.
-- Writes `~/.codex/config.toml`.
-- Stores the API key in `~/.codex/env` with `600` permissions.
-- Creates a `codex` wrapper in `~/.local/bin/codex`.
-- Tries to install the wrapper at `/usr/local/bin/codex` for non-interactive SSH and Codex Desktop remote detection.
+- 安装 nvm。
+- 安装 Node.js 16，兼容 Ubuntu 18.04。
+- 安装 `@openai/codex`。
+- 写入 Codex 配置文件：`~/.codex/config.toml`。
+- 把 API Key 保存到：`~/.codex/env`。
+- 设置 `~/.codex/env` 权限为 `600`。
+- 创建 `codex` 启动包装脚本：`~/.local/bin/codex`。
+- 尝试安装 `/usr/local/bin/codex`，方便 Codex Desktop 远程 SSH 检测。
 
-## Test
+## 默认配置
+
+```text
+Base URL: https://api.antithor.asia
+Model: gpt-5.5
+Wire API: responses
+API key 环境变量: ANTITHOR_API_KEY
+```
+
+生成的 Codex 配置大致如下：
+
+```toml
+model_provider = "antithor"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+disable_response_storage = true
+
+[model_providers.antithor]
+name = "antithor"
+base_url = "https://api.antithor.asia"
+env_key = "ANTITHOR_API_KEY"
+wire_api = "responses"
+```
+
+## 安装后测试
 
 ```bash
 codex --version
 codex exec "hello"
 ```
 
-## Defaults
+如果 `codex --version` 能输出版本号，说明 Codex CLI 已经安装成功。
 
-```text
-Base URL: https://api.antithor.asia
-Model: gpt-5.5
-Wire API: responses
-API key env: ANTITHOR_API_KEY
-```
+如果 `codex exec "hello"` 能正常返回，说明中转站和 API Key 配置可用。
 
-You can override defaults before running:
+## 给 Codex Desktop 远程 SSH 使用
+
+如果要在本地 Codex Desktop 连接这台服务器：
+
+1. 先确保本地可以正常 SSH 进入服务器。
+2. 在服务器上运行本脚本并完成 API Key 配置。
+3. 回到 Codex Desktop 重新连接远程 SSH 主机。
+4. 如果仍提示“未安装 Codex”，退出服务器重新登录，或者重启 Codex Desktop 后再试。
+
+## 修改默认模型
+
+可以在运行脚本前指定模型：
 
 ```bash
 CODEX_MODEL=gpt-5.4 CODEX_REASONING_EFFORT=medium bash install.sh
 ```
+
+也可以修改中转站地址：
+
+```bash
+CODEX_BASE_URL=https://你的中转站地址 bash install.sh
+```
+
+## 注意事项
+
+- 不要把 API Key 写进 GitHub。
+- 脚本会交互式读取 API Key，并保存到用户自己的 `~/.codex/env`。
+- 如果之前已有 `~/.codex/config.toml`，脚本会先自动备份。
+- Ubuntu 18.04 推荐使用 Node.js 16，因此脚本默认安装 Node 16。
