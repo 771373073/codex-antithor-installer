@@ -41,6 +41,7 @@ bash install.sh
 - 把 API Key 明文保存到 Codex 会读取的认证文件：`~/.codex/auth.json`。
 - 同时把 API Key 保存到兼容用的环境变量文件：`~/.codex/env`。
 - 设置 `~/.codex/auth.json` 和 `~/.codex/env` 权限为 `600`。
+- 执行 `codex login --with-api-key`，让 Codex 官方登录缓存也写入成功。
 - 创建 `codex` 启动包装脚本：`~/.local/bin/codex`。
 - 尝试安装 `/usr/local/bin/codex`，方便 Codex Desktop 远程 SSH 检测。
 
@@ -51,6 +52,8 @@ Base URL: https://api.antithor.asia
 Model: gpt-5.5
 Wire API: responses
 Provider: custom
+Reasoning effort: xhigh
+Service tier: fast
 认证文件: ~/.codex/auth.json
 ```
 
@@ -59,20 +62,24 @@ Provider: custom
 ```toml
 model_provider = "custom"
 model = "gpt-5.5"
-model_reasoning_effort = "high"
+model_reasoning_effort = "xhigh"
 disable_response_storage = true
+service_tier = "fast"
+cli_auth_credentials_store = "file"
+forced_login_method = "api"
 
 [model_providers.custom]
 name = "custom"
 wire_api = "responses"
 requires_openai_auth = true
-base_url = "https://api.antithor.asia"
+base_url = "https://api.antithor.asia/"
 ```
 
 生成的 `~/.codex/auth.json` 大致如下：
 
 ```json
 {
+  "auth_mode": "apikey",
   "OPENAI_API_KEY": "你的 API Key"
 }
 ```

@@ -5,8 +5,9 @@ NVM_VERSION="${NVM_VERSION:-v0.40.3}"
 NODE_VERSION="${NODE_VERSION:-16}"
 CODEX_PACKAGE="${CODEX_PACKAGE:-@openai/codex}"
 CODEX_MODEL="${CODEX_MODEL:-gpt-5.5}"
-CODEX_REASONING_EFFORT="${CODEX_REASONING_EFFORT:-high}"
-CODEX_BASE_URL="${CODEX_BASE_URL:-https://api.antithor.asia}"
+CODEX_REASONING_EFFORT="${CODEX_REASONING_EFFORT:-xhigh}"
+CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-fast}"
+CODEX_BASE_URL="${CODEX_BASE_URL:-https://api.antithor.asia/}"
 PROVIDER_NAME="${PROVIDER_NAME:-custom}"
 API_KEY_ENV_NAME="${API_KEY_ENV_NAME:-ANTITHOR_API_KEY}"
 
@@ -98,7 +99,7 @@ const authFile = path.join(codexDir, "auth.json");
 fs.mkdirSync(codexDir, { recursive: true });
 fs.writeFileSync(
   authFile,
-  JSON.stringify({ OPENAI_API_KEY: key }, null, 2) + "\n",
+  JSON.stringify({ auth_mode: "apikey", OPENAI_API_KEY: key }, null, 2) + "\n",
   { mode: 0o600 }
 );
 fs.chmodSync(authFile, 0o600);
@@ -239,6 +240,9 @@ model_provider = "${PROVIDER_NAME}"
 model = "${CODEX_MODEL}"
 model_reasoning_effort = "${CODEX_REASONING_EFFORT}"
 disable_response_storage = true
+service_tier = "${CODEX_SERVICE_TIER}"
+cli_auth_credentials_store = "file"
+forced_login_method = "api"
 
 [model_providers.${PROVIDER_NAME}]
 name = "${PROVIDER_NAME}"
@@ -282,6 +286,11 @@ EOF
 chmod +x "$HOME/.local/bin/codex"
 
 log "保留 npm 原始 codex 命令，仅创建自动加载 API Key 的包装脚本"
+
+log "调用 Codex 官方登录命令写入 API Key 登录缓存"
+if ! printf '%s\n' "$API_KEY_VALUE" | "$HOME/.local/bin/codex" login --with-api-key; then
+  log "Codex 官方登录命令未成功；已保留 ~/.codex/auth.json 明文认证文件"
+fi
 
 if has_cmd sudo; then
   log "安装 /usr/local/bin/codex 包装脚本"
