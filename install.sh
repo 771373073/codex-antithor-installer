@@ -7,7 +7,7 @@ CODEX_PACKAGE="${CODEX_PACKAGE:-@openai/codex}"
 CODEX_MODEL="${CODEX_MODEL:-gpt-5.5}"
 CODEX_REASONING_EFFORT="${CODEX_REASONING_EFFORT:-high}"
 CODEX_BASE_URL="${CODEX_BASE_URL:-https://api.antithor.asia}"
-PROVIDER_NAME="${PROVIDER_NAME:-antithor}"
+PROVIDER_NAME="${PROVIDER_NAME:-custom}"
 API_KEY_ENV_NAME="${API_KEY_ENV_NAME:-ANTITHOR_API_KEY}"
 
 log() {
@@ -15,7 +15,7 @@ log() {
 }
 
 die() {
-  printf '\nERROR: %s\n' "$*" >&2
+  printf '\n错误: %s\n' "$*" >&2
   exit 1
 }
 
@@ -28,16 +28,6 @@ sudo_if_needed() {
     "$@"
   else
     sudo "$@"
-  fi
-}
-
-ensure_line() {
-  local file="$1"
-  local line="$2"
-  mkdir -p "$(dirname "$file")"
-  touch "$file"
-  if ! grep -Fqx "$line" "$file"; then
-    printf '%s\n' "$line" >> "$file"
   fi
 }
 
@@ -76,6 +66,45 @@ shell_quote_export() {
   printf '\n'
 }
 
+read_auth_json_key() {
+  local auth_file="$HOME/.codex/auth.json"
+  if [ ! -f "$auth_file" ] || ! has_cmd node; then
+    return 0
+  fi
+
+  node -e '
+const fs = require("fs");
+const file = process.argv[1];
+try {
+  const value = JSON.parse(fs.readFileSync(file, "utf8")).OPENAI_API_KEY || "";
+  if (value) process.stdout.write(value);
+} catch (_) {}
+' "$auth_file" 2>/dev/null || true
+}
+
+write_auth_json_key() {
+  AUTH_JSON_KEY="$1" node <<'NODE'
+const fs = require("fs");
+const path = require("path");
+
+const home = process.env.HOME;
+const key = process.env.AUTH_JSON_KEY;
+if (!home || !key) {
+  process.exit(1);
+}
+
+const codexDir = path.join(home, ".codex");
+const authFile = path.join(codexDir, "auth.json");
+fs.mkdirSync(codexDir, { recursive: true });
+fs.writeFileSync(
+  authFile,
+  JSON.stringify({ OPENAI_API_KEY: key }, null, 2) + "\n",
+  { mode: 0o600 }
+);
+fs.chmodSync(authFile, 0o600);
+NODE
+}
+
 if [ -z "${BASH_VERSION:-}" ]; then
   exec bash "$0" "$@"
 fi
@@ -101,7 +130,7 @@ done
 
 if [ "${#missing[@]}" -gt 0 ]; then
   if ! has_cmd apt-get; then
-    die "缺少命令: ${missing[*]}；并且未找到 apt-get，请先手动安装这些依赖。"
+    die "缺少命令: ${missing[*]}，并且没有找到 apt-get。请先手动安装这些依赖。"
   fi
   log "安装基础依赖: ${missing[*]}"
   sudo_if_needed apt-get update
@@ -126,7 +155,7 @@ GLOBAL_NODE_ROOT="$(npm root -g)"
 CODEX_PACKAGE_DIR="$GLOBAL_NODE_ROOT/@openai/codex"
 CODEX_ENTRY_FILE="$CODEX_PACKAGE_DIR/bin/codex.js"
 
-if [ -f "$NVM_BIN/codex" ] && [ ! -L "$NVM_BIN/codex" ] && head -n 8 "$NVM_BIN/codex" | grep -q 'export NVM_DIR'; then
+if [ -f "${NVM_BIN:-}/codex" ] && [ ! -L "$NVM_BIN/codex" ] && head -n 8 "$NVM_BIN/codex" | grep -q 'export NVM_DIR'; then
   log "检测到 nvm 的 codex 命令被旧脚本替换，正在清理"
   rm -f "$NVM_BIN/codex"
 fi
@@ -135,7 +164,7 @@ if [ -f "$CODEX_ENTRY_FILE" ] && head -n 8 "$CODEX_ENTRY_FILE" | grep -q 'export
   log "检测到 Codex 入口文件被旧脚本覆盖，正在清理并重装"
   npm uninstall -g @openai/codex >/dev/null 2>&1 || true
   rm -rf "$CODEX_PACKAGE_DIR"
-  rm -f "$NVM_BIN/codex"
+  rm -f "${NVM_BIN:-}/codex"
 fi
 
 log "安装 Codex CLI: ${CODEX_PACKAGE}"
@@ -160,9 +189,16 @@ if [ -f "$HOME/.codex/env" ]; then
   . "$HOME/.codex/env" || true
 fi
 
-EXISTING_API_KEY="${!API_KEY_ENV_NAME:-}"
+EXISTING_API_KEY="${!API_KEY_ENV_NAME-}"
+if [ -z "$EXISTING_API_KEY" ] && [ -n "${OPENAI_API_KEY:-}" ]; then
+  EXISTING_API_KEY="$OPENAI_API_KEY"
+fi
+if [ -z "$EXISTING_API_KEY" ]; then
+  EXISTING_API_KEY="$(read_auth_json_key)"
+fi
+
 if [ -n "$EXISTING_API_KEY" ]; then
-  printf '\n检测到已有 %s。\n直接回车保留旧 Key；输入新 Key 则覆盖。输入时不会显示：\n> ' "$API_KEY_ENV_NAME"
+  printf '\n检测到已有 API Key。\n直接回车保留旧 Key；输入新 Key 则覆盖。输入时不会显示：\n> '
   IFS= read -r -s API_KEY_INPUT
   printf '\n'
   if [ -n "$API_KEY_INPUT" ]; then
@@ -171,20 +207,27 @@ if [ -n "$EXISTING_API_KEY" ]; then
     API_KEY_VALUE="$EXISTING_API_KEY"
   fi
 else
-  printf '\n请输入 %s，然后回车。输入时不会显示，这是正常的：\n> ' "$API_KEY_ENV_NAME"
+  printf '\n请输入 API Key，然后回车。输入时不会显示，这是正常的：\n> '
   IFS= read -r -s API_KEY_VALUE
   printf '\n'
 fi
 
 if [ -z "${API_KEY_VALUE:-}" ]; then
-  die "${API_KEY_ENV_NAME} 不能为空。"
+  die "API Key 不能为空。"
 fi
 
 log "写入 API Key 环境变量文件"
 umask 077
-shell_quote_export "$API_KEY_ENV_NAME" "$API_KEY_VALUE" > "$HOME/.codex/env"
+{
+  shell_quote_export "$API_KEY_ENV_NAME" "$API_KEY_VALUE"
+  shell_quote_export "OPENAI_API_KEY" "$API_KEY_VALUE"
+} > "$HOME/.codex/env"
 chmod 600 "$HOME/.codex/env"
 export "${API_KEY_ENV_NAME}=${API_KEY_VALUE}"
+export OPENAI_API_KEY="$API_KEY_VALUE"
+
+log "写入 Codex 明文认证文件 ~/.codex/auth.json"
+write_auth_json_key "$API_KEY_VALUE"
 
 log "写入 Codex 配置"
 if [ -f "$HOME/.codex/config.toml" ]; then
@@ -199,9 +242,9 @@ disable_response_storage = true
 
 [model_providers.${PROVIDER_NAME}]
 name = "${PROVIDER_NAME}"
-base_url = "${CODEX_BASE_URL}"
-env_key = "${API_KEY_ENV_NAME}"
 wire_api = "responses"
+requires_openai_auth = true
+base_url = "${CODEX_BASE_URL}"
 EOF
 
 log "配置 Codex 命令，让登录 shell 和非交互 SSH 都能找到"
@@ -255,22 +298,24 @@ npm -v
 printf 'codex: '
 "$HOME/.local/bin/codex" --version
 printf '配置文件: %s\n' "$HOME/.codex/config.toml"
-printf 'API Key 环境变量: %s，保存位置: %s\n' "$API_KEY_ENV_NAME" "$HOME/.codex/env"
+printf '环境变量文件: %s\n' "$HOME/.codex/env"
+printf 'Codex 明文认证文件: %s\n' "$HOME/.codex/auth.json"
 
 cat <<'EOF'
 
 安装完成。
 
 建议继续测试：
-  source ~/.codex/env
-  export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
   hash -r
-  which -a codex
-  codex exec "hello"
+  /usr/local/bin/codex --version
+  /usr/local/bin/codex exec --skip-git-repo-check "hello"
 
 如果要给 Codex Desktop 远程 SSH 使用：
   1. 先确认本地电脑可以 SSH 进入这台服务器。
   2. 回到 Codex Desktop 重新连接远程主机。
   3. 如果仍然提示“未安装 Codex”，退出服务器重新登录，
      或者重启 Codex Desktop 后再试。
+
+提示：bubblewrap 警告不影响 API Key；想消除警告可以执行：
+  sudo apt update && sudo apt install -y bubblewrap
 EOF
