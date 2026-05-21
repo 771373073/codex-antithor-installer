@@ -95,8 +95,31 @@ nvm install "$NODE_VERSION"
 nvm alias default "$NODE_VERSION"
 nvm use "$NODE_VERSION"
 
+GLOBAL_NODE_ROOT="$(npm root -g)"
+CODEX_PACKAGE_DIR="$GLOBAL_NODE_ROOT/@openai/codex"
+CODEX_ENTRY_FILE="$CODEX_PACKAGE_DIR/bin/codex.js"
+
+if [ -f "$CODEX_ENTRY_FILE" ] && head -n 8 "$CODEX_ENTRY_FILE" | grep -q 'export NVM_DIR'; then
+  log "检测到 Codex 入口文件被旧脚本覆盖，正在清理并重装"
+  npm uninstall -g @openai/codex >/dev/null 2>&1 || true
+  rm -rf "$CODEX_PACKAGE_DIR"
+  rm -f "$NVM_BIN/codex"
+fi
+
 log "安装 Codex CLI: ${CODEX_PACKAGE}"
-npm install -g "$CODEX_PACKAGE"
+npm install -g --force "$CODEX_PACKAGE"
+
+GLOBAL_NODE_ROOT="$(npm root -g)"
+CODEX_PACKAGE_DIR="$GLOBAL_NODE_ROOT/@openai/codex"
+CODEX_ENTRY_FILE="$CODEX_PACKAGE_DIR/bin/codex.js"
+
+if [ ! -f "$CODEX_ENTRY_FILE" ]; then
+  die "Codex CLI 安装失败，未找到入口文件: $CODEX_ENTRY_FILE"
+fi
+
+if head -n 8 "$CODEX_ENTRY_FILE" | grep -q 'export NVM_DIR'; then
+  die "Codex CLI 入口文件仍然异常: $CODEX_ENTRY_FILE。请执行 npm uninstall -g @openai/codex 后重试。"
+fi
 
 mkdir -p "$HOME/.codex"
 

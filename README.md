@@ -74,6 +74,12 @@ codex exec "hello"
 Missing environment variable: `ANTITHOR_API_KEY`.
 ```
 
+或者看到下面的旧脚本污染错误：
+
+```text
+SyntaxError: Unexpected token 'export'
+```
+
 请重新拉取最新脚本再运行一次：
 
 ```bash
