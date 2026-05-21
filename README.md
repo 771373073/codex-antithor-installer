@@ -22,6 +22,16 @@ bash install.sh
 
 此时粘贴你的 API Key，然后回车即可。输入过程中不会显示，这是正常的。
 
+如果服务器里已经有旧 Key，脚本会提示：
+
+```text
+检测到已有 ANTITHOR_API_KEY。
+直接回车保留旧 Key；输入新 Key 则覆盖。输入时不会显示：
+>
+```
+
+如果要换 Key，就输入新 Key；如果继续用旧 Key，直接回车。
+
 ## 脚本会做什么
 
 - 安装 nvm。
@@ -60,6 +70,10 @@ wire_api = "responses"
 ## 安装后测试
 
 ```bash
+source ~/.codex/env
+export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
+hash -r
+which -a codex
 codex --version
 codex exec "hello"
 ```

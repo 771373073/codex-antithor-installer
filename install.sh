@@ -41,6 +41,33 @@ ensure_line() {
   fi
 }
 
+upsert_managed_block() {
+  local file="$1"
+  local start_marker="$2"
+  local end_marker="$3"
+  local block_file="$4"
+
+  mkdir -p "$(dirname "$file")"
+  touch "$file"
+
+  local tmp_file
+  tmp_file="$(mktemp)"
+  awk -v start="$start_marker" -v end="$end_marker" '
+    $0 == start { skip = 1; next }
+    $0 == end { skip = 0; next }
+    !skip { print }
+  ' "$file" > "$tmp_file"
+
+  {
+    cat "$tmp_file"
+    printf '\n%s\n' "$start_marker"
+    cat "$block_file"
+    printf '%s\n' "$end_marker"
+  } > "$file"
+
+  rm -f "$tmp_file"
+}
+
 shell_quote_export() {
   local name="$1"
   local value="$2"
@@ -128,12 +155,25 @@ fi
 
 mkdir -p "$HOME/.codex"
 
-if [ -z "${!API_KEY_ENV_NAME:-}" ]; then
+if [ -f "$HOME/.codex/env" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.codex/env" || true
+fi
+
+EXISTING_API_KEY="${!API_KEY_ENV_NAME:-}"
+if [ -n "$EXISTING_API_KEY" ]; then
+  printf '\n检测到已有 %s。\n直接回车保留旧 Key；输入新 Key 则覆盖。输入时不会显示：\n> ' "$API_KEY_ENV_NAME"
+  IFS= read -r -s API_KEY_INPUT
+  printf '\n'
+  if [ -n "$API_KEY_INPUT" ]; then
+    API_KEY_VALUE="$API_KEY_INPUT"
+  else
+    API_KEY_VALUE="$EXISTING_API_KEY"
+  fi
+else
   printf '\n请输入 %s，然后回车。输入时不会显示，这是正常的：\n> ' "$API_KEY_ENV_NAME"
   IFS= read -r -s API_KEY_VALUE
   printf '\n'
-else
-  API_KEY_VALUE="${!API_KEY_ENV_NAME}"
 fi
 
 if [ -z "${API_KEY_VALUE:-}" ]; then
@@ -165,15 +205,17 @@ wire_api = "responses"
 EOF
 
 log "配置 Codex 命令，让登录 shell 和非交互 SSH 都能找到"
-ensure_line "$HOME/.profile" 'export NVM_DIR="$HOME/.nvm"'
-ensure_line "$HOME/.profile" '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"'
-ensure_line "$HOME/.profile" '[ -f "$HOME/.codex/env" ] && . "$HOME/.codex/env"'
-ensure_line "$HOME/.profile" 'export PATH="$HOME/.local/bin:$PATH"'
+SHELL_BLOCK="$(mktemp)"
+cat > "$SHELL_BLOCK" <<'EOF'
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+[ -f "$HOME/.codex/env" ] && . "$HOME/.codex/env"
+export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
+EOF
 
-ensure_line "$HOME/.bashrc" 'export NVM_DIR="$HOME/.nvm"'
-ensure_line "$HOME/.bashrc" '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"'
-ensure_line "$HOME/.bashrc" '[ -f "$HOME/.codex/env" ] && . "$HOME/.codex/env"'
-ensure_line "$HOME/.bashrc" 'export PATH="$HOME/.local/bin:$PATH"'
+upsert_managed_block "$HOME/.profile" '# >>> codex-antithor-installer >>>' '# <<< codex-antithor-installer <<<' "$SHELL_BLOCK"
+upsert_managed_block "$HOME/.bashrc" '# >>> codex-antithor-installer >>>' '# <<< codex-antithor-installer <<<' "$SHELL_BLOCK"
+rm -f "$SHELL_BLOCK"
 
 mkdir -p "$HOME/.local/bin"
 cat > "$HOME/.local/bin/codex" <<'EOF'
@@ -220,6 +262,10 @@ cat <<'EOF'
 安装完成。
 
 建议继续测试：
+  source ~/.codex/env
+  export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
+  hash -r
+  which -a codex
   codex exec "hello"
 
 如果要给 Codex Desktop 远程 SSH 使用：
