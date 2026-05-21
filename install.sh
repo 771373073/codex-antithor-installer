@@ -116,6 +116,7 @@ log "写入 API Key 环境变量文件"
 umask 077
 shell_quote_export "$API_KEY_ENV_NAME" "$API_KEY_VALUE" > "$HOME/.codex/env"
 chmod 600 "$HOME/.codex/env"
+export "${API_KEY_ENV_NAME}=${API_KEY_VALUE}"
 
 log "写入 Codex 配置"
 if [ -f "$HOME/.codex/config.toml" ]; then
@@ -157,14 +158,29 @@ if [ ! -s "$NVM_DIR/nvm.sh" ]; then
   exit 127
 fi
 . "$NVM_DIR/nvm.sh"
-nvm use --silent default >/dev/null
-if [ ! -x "$NVM_BIN/codex" ]; then
-  echo "未在 $NVM_BIN 中找到 codex" >&2
+nvm use --silent default >/dev/null 2>&1 || true
+CODEX_JS="$(npm root -g 2>/dev/null)/@openai/codex/bin/codex.js"
+if [ ! -f "$CODEX_JS" ]; then
+  echo "未找到 Codex CLI 文件: $CODEX_JS" >&2
   exit 127
 fi
-exec "$NVM_BIN/codex" "$@"
+exec node "$CODEX_JS" "$@"
 EOF
 chmod +x "$HOME/.local/bin/codex"
+
+NVM_DEFAULT_VERSION="$(nvm version default)"
+NVM_DEFAULT_BIN="$NVM_DIR/versions/node/$NVM_DEFAULT_VERSION/bin"
+if [ -d "$NVM_DEFAULT_BIN" ]; then
+  cp "$HOME/.local/bin/codex" "$NVM_DEFAULT_BIN/codex"
+  chmod +x "$NVM_DEFAULT_BIN/codex"
+  log "已修复 nvm Codex 入口: $NVM_DEFAULT_BIN/codex"
+fi
+
+if [ -n "${NVM_BIN:-}" ] && [ -d "$NVM_BIN" ] && [ "$NVM_BIN" != "$NVM_DEFAULT_BIN" ]; then
+  cp "$HOME/.local/bin/codex" "$NVM_BIN/codex"
+  chmod +x "$NVM_BIN/codex"
+  log "已修复当前 nvm Codex 入口: $NVM_BIN/codex"
+fi
 
 if has_cmd sudo; then
   log "安装 /usr/local/bin/codex 包装脚本"

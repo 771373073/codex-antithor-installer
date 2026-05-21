@@ -68,6 +68,21 @@ codex exec "hello"
 
 如果 `codex exec "hello"` 能正常返回，说明中转站和 API Key 配置可用。
 
+如果看到下面的报错：
+
+```text
+Missing environment variable: `ANTITHOR_API_KEY`.
+```
+
+请重新拉取最新脚本再运行一次：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/771373073/codex-antithor-installer/main/install.sh -o install.sh
+bash install.sh
+```
+
+新版脚本会同时修复 `~/.local/bin/codex`、`/usr/local/bin/codex` 和 nvm 里的 `codex` 入口，确保启动 Codex 时自动加载 `~/.codex/env`。
+
 ## 给 Codex Desktop 远程 SSH 使用
 
 如果要在本地 Codex Desktop 连接这台服务器：
