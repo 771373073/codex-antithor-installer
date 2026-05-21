@@ -99,6 +99,11 @@ GLOBAL_NODE_ROOT="$(npm root -g)"
 CODEX_PACKAGE_DIR="$GLOBAL_NODE_ROOT/@openai/codex"
 CODEX_ENTRY_FILE="$CODEX_PACKAGE_DIR/bin/codex.js"
 
+if [ -f "$NVM_BIN/codex" ] && [ ! -L "$NVM_BIN/codex" ] && head -n 8 "$NVM_BIN/codex" | grep -q 'export NVM_DIR'; then
+  log "检测到 nvm 的 codex 命令被旧脚本替换，正在清理"
+  rm -f "$NVM_BIN/codex"
+fi
+
 if [ -f "$CODEX_ENTRY_FILE" ] && head -n 8 "$CODEX_ENTRY_FILE" | grep -q 'export NVM_DIR'; then
   log "检测到 Codex 入口文件被旧脚本覆盖，正在清理并重装"
   npm uninstall -g @openai/codex >/dev/null 2>&1 || true
@@ -191,36 +196,7 @@ exec node "$CODEX_JS" "$@"
 EOF
 chmod +x "$HOME/.local/bin/codex"
 
-install_codex_wrapper() {
-  local target="$1"
-  local wrapper="$2"
-
-  mkdir -p "$(dirname "$target")"
-
-  # npm normally creates bin/codex as a symlink to the package's JS entrypoint.
-  # Remove the symlink first; otherwise cp would follow it and overwrite
-  # @openai/codex/bin/codex.js with this bash wrapper.
-  if [ -L "$target" ]; then
-    rm -f "$target"
-  elif [ -e "$target" ]; then
-    mv "$target" "$target.real-$(date +'%Y%m%d-%H%M%S')"
-  fi
-
-  cp "$wrapper" "$target"
-  chmod +x "$target"
-}
-
-NVM_DEFAULT_VERSION="$(nvm version default)"
-NVM_DEFAULT_BIN="$NVM_DIR/versions/node/$NVM_DEFAULT_VERSION/bin"
-if [ -d "$NVM_DEFAULT_BIN" ]; then
-  install_codex_wrapper "$NVM_DEFAULT_BIN/codex" "$HOME/.local/bin/codex"
-  log "已修复 nvm Codex 入口: $NVM_DEFAULT_BIN/codex"
-fi
-
-if [ -n "${NVM_BIN:-}" ] && [ -d "$NVM_BIN" ] && [ "$NVM_BIN" != "$NVM_DEFAULT_BIN" ]; then
-  install_codex_wrapper "$NVM_BIN/codex" "$HOME/.local/bin/codex"
-  log "已修复当前 nvm Codex 入口: $NVM_BIN/codex"
-fi
+log "保留 npm 原始 codex 命令，仅创建自动加载 API Key 的包装脚本"
 
 if has_cmd sudo; then
   log "安装 /usr/local/bin/codex 包装脚本"
@@ -235,7 +211,7 @@ node -v
 printf 'npm: '
 npm -v
 printf 'codex: '
-codex --version
+"$HOME/.local/bin/codex" --version
 printf '配置文件: %s\n' "$HOME/.codex/config.toml"
 printf 'API Key 环境变量: %s，保存位置: %s\n' "$API_KEY_ENV_NAME" "$HOME/.codex/env"
 

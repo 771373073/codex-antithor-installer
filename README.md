@@ -87,7 +87,7 @@ curl -fsSL https://raw.githubusercontent.com/771373073/codex-antithor-installer/
 bash install.sh
 ```
 
-新版脚本会同时修复 `~/.local/bin/codex`、`/usr/local/bin/codex` 和 nvm 里的 `codex` 入口，确保启动 Codex 时自动加载 `~/.codex/env`。
+新版脚本会保留 npm 原始的 `codex` 命令，并额外创建 `~/.local/bin/codex` 和 `/usr/local/bin/codex` 包装脚本，用于自动加载 `~/.codex/env`。
 
 ## 给 Codex Desktop 远程 SSH 使用
 
