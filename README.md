@@ -5,7 +5,7 @@ One-command installer for Ubuntu servers. It installs Codex CLI with Node.js 16 
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/codex-antithor-installer/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/771373073/codex-antithor-installer/main/install.sh -o install.sh
 bash install.sh
 ```
 
