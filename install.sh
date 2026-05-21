@@ -168,17 +168,34 @@ exec node "$CODEX_JS" "$@"
 EOF
 chmod +x "$HOME/.local/bin/codex"
 
+install_codex_wrapper() {
+  local target="$1"
+  local wrapper="$2"
+
+  mkdir -p "$(dirname "$target")"
+
+  # npm normally creates bin/codex as a symlink to the package's JS entrypoint.
+  # Remove the symlink first; otherwise cp would follow it and overwrite
+  # @openai/codex/bin/codex.js with this bash wrapper.
+  if [ -L "$target" ]; then
+    rm -f "$target"
+  elif [ -e "$target" ]; then
+    mv "$target" "$target.real-$(date +'%Y%m%d-%H%M%S')"
+  fi
+
+  cp "$wrapper" "$target"
+  chmod +x "$target"
+}
+
 NVM_DEFAULT_VERSION="$(nvm version default)"
 NVM_DEFAULT_BIN="$NVM_DIR/versions/node/$NVM_DEFAULT_VERSION/bin"
 if [ -d "$NVM_DEFAULT_BIN" ]; then
-  cp "$HOME/.local/bin/codex" "$NVM_DEFAULT_BIN/codex"
-  chmod +x "$NVM_DEFAULT_BIN/codex"
+  install_codex_wrapper "$NVM_DEFAULT_BIN/codex" "$HOME/.local/bin/codex"
   log "已修复 nvm Codex 入口: $NVM_DEFAULT_BIN/codex"
 fi
 
 if [ -n "${NVM_BIN:-}" ] && [ -d "$NVM_BIN" ] && [ "$NVM_BIN" != "$NVM_DEFAULT_BIN" ]; then
-  cp "$HOME/.local/bin/codex" "$NVM_BIN/codex"
-  chmod +x "$NVM_BIN/codex"
+  install_codex_wrapper "$NVM_BIN/codex" "$HOME/.local/bin/codex"
   log "已修复当前 nvm Codex 入口: $NVM_BIN/codex"
 fi
 
